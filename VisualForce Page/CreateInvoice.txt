@@ -1,0 +1,10 @@
+<apex:page controller="CreateInvoiceController">
+    <apex:form >
+        <apex:pageBlock title="Invoice Creation Parameters">
+            <apex:pageBlockTable value="{!urlParams}" var="param">
+                <apex:column value="{!param.key}" headerValue="Parameter Name"/>
+                <apex:column value="{!param.value}" headerValue="Parameter Value"/>
+            </apex:pageBlockTable>
+        </apex:pageBlock>
+    </apex:form>
+</apex:page>

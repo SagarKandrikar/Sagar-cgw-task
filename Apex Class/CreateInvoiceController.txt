@@ -1,0 +1,34 @@
+public class CreateInvoiceController {
+    public List<ParameterWrapper> urlParams { get; set; }
+
+    public CreateInvoiceController() {
+        List<Invoice__c> insertInvoiceList = new  List<Invoice__c>();
+        urlParams = new List<ParameterWrapper>();
+        // Get the URL parameters
+        Map<String, String> params = ApexPages.currentPage().getParameters();
+        
+        // Iterate through the parameters and store them in a list
+        for (String key : params.keySet()) {
+            Invoice__c geneateInvoice =  new Invoice__c();            
+            if(key != 'clc' && key != 'isdtp' && key != 'ltn_app_id' && key != 'nonce' && key != 'sfdcIFrameHost' && key != 'sfdcIFrameOrigin' && key != 'tour'){
+                  urlParams.add(new ParameterWrapper(key, params.get(key)));
+                geneateInvoice.Account__c = key == 'account'?params.get(key) : null;
+                insertInvoiceList.add(geneateInvoice);
+                
+            }
+          
+        }
+    //insert insertInvoiceList;
+    }
+
+    // Wrapper class to hold parameter name and value
+    public class ParameterWrapper {
+        public String key { get; set; }
+        public String value { get; set; }
+
+        public ParameterWrapper(String key, String value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+}
