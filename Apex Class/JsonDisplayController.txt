@@ -1,8 +1,65 @@
 public with sharing class JsonDisplayController {
     public String jsonOutput { get; set; }
-
+    
     public JsonDisplayController() {
         // Get the JSON output from the URL parameters
         jsonOutput = ApexPages.currentPage().getParameters().get('jsonOutput');
+    }
+    
+    public PageReference createInvoiceFromJson() {
+        try {
+            // Parse the JSON to extract necessary fields
+            Map<String, Object> invoiceData = (Map<String, Object>) JSON.deserializeUntyped(jsonOutput);
+            
+            // Extract and validate LineItems
+            List<Object> lineItemsData = (List<Object>) invoiceData.get('LineItems');
+            
+            // Create the Invoice record
+            Invoice__c newInvoice = new Invoice__c();
+            newInvoice.Contact_ID__c = (String) invoiceData.get('ContactID'); // Assuming ContactID maps to Account__c
+            String invoiceDateStr = String.valueof(invoiceData.get('Date'));
+            String dueDateStr = String.valueof(invoiceData.get('DueDate'));
+            Date invoiceDate = parseDate(invoiceDateStr); // Custom parsing
+            Date dueDate = parseDate(dueDateStr); // Custom parsing;
+            newInvoice.Invoice_Date__c = invoiceDate; // Convert to Date
+            newInvoice.Due_Date__c = dueDate; // Convert to Date
+            insert newInvoice;
+            
+            // Create Line Item records
+            List<Line_Item__c> lineItems = new List<Line_Item__c>();
+            for (Object obj : lineItemsData) {
+                Map<String, Object> lineItemData = (Map<String, Object>) obj;
+                
+                Line_Item__c lineItem = new Line_Item__c();
+                lineItem.Invoice__c = newInvoice.Id; // Link to the newly created Invoice
+                lineItem.Line_Description__c = (String) lineItemData.get('Description');
+                lineItem.Quantity__c = Decimal.valueOf(lineItemData.get('Quantity').toString());
+                lineItem.Unit_Price__c = Decimal.valueOf(lineItemData.get('UnitAmount').toString());
+                lineItems.add(lineItem);
+            }
+            insert lineItems;
+            
+            // Redirect to the newly created Invoice record
+            PageReference invoicePage = new PageReference('/' + newInvoice.Id);
+            invoicePage.setRedirect(true);
+            return invoicePage;
+            
+        } catch (Exception ex) {
+            ApexPages.addMessages(ex);
+            return null;
+        }
+    }
+    
+    // Helper method to parse dates in MM/dd/yyyy format
+    private Date parseDate(String dateStr) {
+        try {
+            List<String> parts = dateStr.split('/');
+            Integer month = Integer.valueOf(parts[0]);
+            Integer day = Integer.valueOf(parts[1]);
+            Integer year = Integer.valueOf(parts[2]);
+            return Date.newInstance(year, month, day);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException('Invalid date format: ' + dateStr);
+        }
     }
 }
