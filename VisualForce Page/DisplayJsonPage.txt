@@ -1,0 +1,5 @@
+<apex:page controller="JsonDisplayController">
+    <apex:pageBlock title="JSON Output">
+        <apex:outputText value="{!jsonOutput}" escape="false" />
+    </apex:pageBlock>
+</apex:page>

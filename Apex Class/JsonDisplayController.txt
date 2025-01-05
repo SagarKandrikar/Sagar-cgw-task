@@ -1,0 +1,8 @@
+public with sharing class JsonDisplayController {
+    public String jsonOutput { get; set; }
+
+    public JsonDisplayController() {
+        // Get the JSON output from the URL parameters
+        jsonOutput = ApexPages.currentPage().getParameters().get('jsonOutput');
+    }
+}
