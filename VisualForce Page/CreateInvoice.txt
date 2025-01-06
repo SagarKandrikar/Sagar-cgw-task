@@ -1,10 +1,12 @@
 <apex:page controller="CreateInvoiceController">
     <apex:form >
-        <apex:pageBlock title="Invoice Creation Parameters">
+        <apex:pageBlock title="Create Invoice">
             <apex:pageBlockTable value="{!urlParams}" var="param">
-                <apex:column value="{!param.key}" headerValue="Parameter Name"/>
-                <apex:column value="{!param.value}" headerValue="Parameter Value"/>
+                <apex:column value="{!param}" headerValue="Parameter Name"/>
+                <apex:column value="{!urlParams[param]}" headerValue="Value"/>
             </apex:pageBlockTable>
+            <apex:commandButton value="Create Invoice" action="{!createInvoice}"/>
+          <apex:commandButton value="Show JSON" action="{!generateJson}"/>
         </apex:pageBlock>
     </apex:form>
 </apex:page>

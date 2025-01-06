@@ -1,34 +1,134 @@
-public class CreateInvoiceController {
-    public List<ParameterWrapper> urlParams { get; set; }
-
+public with sharing class CreateInvoiceController {
+    public Map<String, String> urlParams { get; set; }
+    public String jsonOutput { get; set; } // To hold the JSON output
+    
     public CreateInvoiceController() {
-        List<Invoice__c> insertInvoiceList = new  List<Invoice__c>();
-        urlParams = new List<ParameterWrapper>();
-        // Get the URL parameters
-        Map<String, String> params = ApexPages.currentPage().getParameters();
-        
-        // Iterate through the parameters and store them in a list
-        for (String key : params.keySet()) {
-            Invoice__c geneateInvoice =  new Invoice__c();            
-            if(key != 'clc' && key != 'isdtp' && key != 'ltn_app_id' && key != 'nonce' && key != 'sfdcIFrameHost' && key != 'sfdcIFrameOrigin' && key != 'tour'){
-                  urlParams.add(new ParameterWrapper(key, params.get(key)));
-                geneateInvoice.Account__c = key == 'account'?params.get(key) : null;
-                insertInvoiceList.add(geneateInvoice);
-                
-            }
-          
+        urlParams = new Map<String, String>();
+        // Parse URL parameters
+        for (String param : ApexPages.currentPage().getParameters().keySet()) {
+            urlParams.put(param, ApexPages.currentPage().getParameters().get(param));
         }
-    //insert insertInvoiceList;
     }
-
-    // Wrapper class to hold parameter name and value
-    public class ParameterWrapper {
-        public String key { get; set; }
-        public String value { get; set; }
-
-        public ParameterWrapper(String key, String value) {
-            this.key = key;
-            this.value = value;
+    
+    public void createInvoice() {
+        try {
+            // Debugging: Log URL parameters
+            System.debug('URL Parameters: ' + urlParams);
+            
+            // Create Invoice record
+            Invoice__c invoice = new Invoice__c();
+            invoice.Account__c = urlParams.get('account'); // This should be the Account ID
+            
+            
+            // Parse dates from URL parameters
+            invoice.Invoice_Date__c = Date.valueOf(urlParams.get('invoice_date')); // Ensure this is in YYYY-MM-DD format
+            invoice.Due_Date__c = Date.valueOf(urlParams.get('invoice_due_date')); // Ensure this is in YYYY-MM-DD format
+            
+            invoice.Invoice_Reference__c = 'Ref-' + String.valueOf(System.currentTimeMillis());
+            
+            // Insert Invoice
+            insert invoice;
+            
+            // Debugging: Log the inserted invoice ID
+            System.debug('Inserted Invoice ID: ' + invoice.Id);
+            
+            // Retrieve Opportunity/Order Products based on the origin record
+            List<Line_Item__c> lineItems = new List<Line_Item__c>();
+            String originRecordId = urlParams.get('origin_record');
+            String childRelationshipName = urlParams.get('child_relationship_name');
+            
+            // Query the Opportunity/Order Products
+            String query = 'SELECT Id, ' + urlParams.get('line_item_description') + ', ' + 
+                urlParams.get('line_item_quantity') + ', ' + 
+                urlParams.get('line_item_unit_price') + 
+                ' FROM ' + childRelationshipName + 
+                ' WHERE OpportunityId = :originRecordId'; // Adjust for Order if needed
+            
+            // Debugging: Log the query
+            System.debug('Query: ' + query);
+            System.debug('Origin Record ID: ' + originRecordId);
+            
+            List<SObject> products = Database.query(query);
+            
+            // Debugging: Log the number of products retrieved
+            System.debug('Number of products retrieved: ' + products.size());
+            
+            for (SObject product : products) {
+                Line_Item__c lineItem = new Line_Item__c();
+                lineItem.Invoice__c = invoice.Id;
+                lineItem.Line_Description__c = (String)product.get(urlParams.get('line_item_description'));
+                lineItem.Quantity__c = (Integer)product.get(urlParams.get('line_item_quantity'));
+                lineItem.Unit_Price__c = (Decimal)product.get(urlParams.get('line_item_unit_price'));
+                //lineItem.Amount__c = lineItem.Quantity__c * lineItem.Unit_Price__c;
+                lineItems.add(lineItem);
+            }
+            
+            // Insert all Line Items
+            if (!lineItems.isEmpty()) {
+                insert lineItems;
+                // Debugging: Log the number of line items inserted
+                System.debug('Inserted Line Items: ' + lineItems.size());
+            } else {
+                System.debug('No line items to insert.');
+            }
+            
+            // Success message
+            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.INFO, 'Invoice created successfully with ' + lineItems.size() + ' line items!'));
+        } catch (Exception e) {
+            // Handle exceptions and provide feedback
+            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'Error creating invoice: ' + e.getMessage()));
+            System.debug('Error creating invoice: ' + e.getMessage());
+        }
+    }
+    
+    public PageReference generateJson() {
+        try {
+            System.debug('URL Parameters: ' + urlParams);
+            // Create a JSON object for the invoice
+            Map<String, Object> invoiceJson = new Map<String, Object>();
+            invoiceJson.put('Type', 'ACCREC'); // Invoice type
+            invoiceJson.put('ContactID', '0000000'); // Dummy Contact ID
+            invoiceJson.put('Date', Date.today().format()); // Invoice date
+            invoiceJson.put('DueDate', Date.today().addDays(30).format()); // Due date
+            List<Map<String, Object>> lineItems = new List<Map<String, Object>>(); // Create a list for line items
+            invoiceJson.put('LineItems', lineItems); // Add the list to the JSON map
+            
+            // Retrieve Opportunity/Order Products based on the origin record
+            String originRecordId = urlParams.get('origin_record');
+            String childRelationshipName = urlParams.get('child_relationship_name');
+            
+            // Query the Opportunity/Order Products
+            String query = 'SELECT Id, ' + urlParams.get('line_item_description') + ', ' + 
+                urlParams.get('line_item_quantity') + ', ' + 
+                urlParams.get('line_item_unit_price') + 
+                ' FROM ' + childRelationshipName + 
+                ' WHERE OpportunityId = :originRecordId'; // Adjust for Order if needed
+            system.debug('Query: '+query);
+            List<SObject> products = Database.query(query);
+            
+            // Populate LineItems in JSON
+            for (SObject product : products) {
+                Map<String, Object> lineItem = new Map<String, Object>();
+                lineItem.put('Description', (String)product.get(urlParams.get('line_item_description')));
+                lineItem.put('Quantity', (Decimal)product.get(urlParams.get('line_item_quantity')));
+                lineItem.put('UnitAmount', (Decimal)product.get(urlParams.get('line_item_unit_price')));
+                lineItem.put('AccountCode', '200'); // Dummy account code
+                lineItems.add(lineItem); // Add the line item to the list
+            }
+            
+            // Convert the invoice JSON map to a JSON string
+            jsonOutput = JSON.serialize(invoiceJson);
+            
+            // Redirect to the JSON display page with the JSON output as a parameter
+        PageReference jsonPage = new PageReference('/apex/DisplayJsonPage?jsonOutput=' + EncodingUtil.urlEncode(jsonOutput, 'UTF-8'));
+        jsonPage.setRedirect(true);
+        return jsonPage; // Return the PageReference to perform the redirect
+            
+ 
+            
+        } catch (Exception e) {
+            jsonOutput = 'Error generating JSON: ' + e.getMessage();
+             return null; // Return null if there's an error
         }
     }
 }
